@@ -1,8 +1,8 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// Relative base so GitHub Pages and local preview both resolve assets.
+// Absolute base required for GitHub Pages project site.
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/cardinals-dragonflies/',
 })

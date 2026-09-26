@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually `http://localhost:5173`).
+Open the URL Vite prints (usually `http://localhost:5173/cardinals-dragonflies/` (Vite base path)).
 
 ```bash
 npm run build    # production bundle → dist/

@@ -1,3 +1,5 @@
+import { assetUrl } from '../assetUrl'
+
 type LandingProps = {
   onEnter: () => void
 }
@@ -8,7 +10,7 @@ export function Landing({ onEnter }: LandingProps) {
       <div className="landing__card">
         <img
           className="landing__logo"
-          src="./logo-infinity.jpg"
+          src={assetUrl('logo-infinity.jpg')}
           alt="Cardinals & Dragonflies logo"
           width={120}
           height={120}
@@ -22,7 +24,7 @@ export function Landing({ onEnter }: LandingProps) {
           Enter garden
         </button>
         <p className="landing__hint">
-          Desktop: WASD / arrows + click to look · Mobile: stick to walk, drag to look
+          Desktop: WASD / arrows · drag or click to look · Mobile: stick + drag
         </p>
       </div>
     </div>

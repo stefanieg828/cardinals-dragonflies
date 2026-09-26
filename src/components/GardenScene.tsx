@@ -1,7 +1,8 @@
-import { Cloud, Sky } from '@react-three/drei'
+import { Sky } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { assetUrl } from '../assetUrl'
 import { SAMPLE_MEMORY } from '../data/sampleMemory'
 import { Landmark } from './Landmark'
 
@@ -55,6 +56,55 @@ function Bush({
   )
 }
 
+/** Local soft clouds — no remote CDN texture (drei Cloud was crashing Pages). */
+function SoftCloud({
+  position,
+  scale = 1,
+}: {
+  position: [number, number, number]
+  scale?: number
+}) {
+  const ref = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    if (!ref.current) return
+    ref.current.position.x = position[0] + Math.sin(clock.elapsedTime * 0.08 + position[2]) * 0.4
+  })
+  return (
+    <group ref={ref} position={position} scale={scale}>
+      <mesh>
+        <sphereGeometry args={[1.6, 10, 10]} />
+        <meshStandardMaterial
+          color="#f4f7fb"
+          transparent
+          opacity={0.45}
+          depthWrite={false}
+          roughness={1}
+        />
+      </mesh>
+      <mesh position={[1.2, 0.1, 0.2]}>
+        <sphereGeometry args={[1.1, 10, 10]} />
+        <meshStandardMaterial
+          color="#eef3f8"
+          transparent
+          opacity={0.4}
+          depthWrite={false}
+          roughness={1}
+        />
+      </mesh>
+      <mesh position={[-1.0, 0.15, -0.15]}>
+        <sphereGeometry args={[1.0, 10, 10]} />
+        <meshStandardMaterial
+          color="#f7fafc"
+          transparent
+          opacity={0.38}
+          depthWrite={false}
+          roughness={1}
+        />
+      </mesh>
+    </group>
+  )
+}
+
 function PathRibbon() {
   const geometry = useMemo(() => {
     const shape = new THREE.Shape()
@@ -89,16 +139,39 @@ function PathRibbon() {
 }
 
 function GardenBackdrop() {
-  const texture = useMemo(() => {
-    const tex = new THREE.TextureLoader().load('./ghibli-garden-main.jpg')
-    tex.colorSpace = THREE.SRGBColorSpace
-    return tex
+  const [map, setMap] = useState<THREE.Texture | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const url = assetUrl('ghibli-garden-main.jpg')
+    const loader = new THREE.TextureLoader()
+    loader.load(
+      url,
+      (tex) => {
+        if (cancelled) {
+          tex.dispose()
+          return
+        }
+        tex.colorSpace = THREE.SRGBColorSpace
+        setMap(tex)
+      },
+      undefined,
+      () => {
+        console.warn('[garden] backdrop texture failed:', url)
+        if (!cancelled) setMap(null)
+      },
+    )
+    return () => {
+      cancelled = true
+    }
   }, [])
+
+  if (!map) return null
 
   return (
     <mesh position={[0, 6.5, -24]}>
       <planeGeometry args={[22, 12]} />
-      <meshBasicMaterial map={texture} transparent opacity={0.5} depthWrite={false} />
+      <meshBasicMaterial map={map} transparent opacity={0.5} depthWrite={false} />
     </mesh>
   )
 }
@@ -225,8 +298,9 @@ export function GardenScene({ nearLandmark }: GardenSceneProps) {
         turbidity={4}
       />
 
-      <Cloud position={[-10, 10, -18]} speed={0.05} opacity={0.35} segments={12} />
-      <Cloud position={[12, 11, -22]} speed={0.04} opacity={0.28} segments={10} />
+      <SoftCloud position={[-10, 10, -18]} scale={1.4} />
+      <SoftCloud position={[12, 11, -22]} scale={1.2} />
+      <SoftCloud position={[2, 12, -16]} scale={0.9} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -4]} receiveShadow>
         <planeGeometry args={[40, 40]} />

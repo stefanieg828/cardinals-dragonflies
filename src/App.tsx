@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { GardenScene } from './components/GardenScene'
 import { Landing } from './components/Landing'
 import { MemoryCard } from './components/MemoryCard'
@@ -23,8 +24,7 @@ function useIsCoarsePointer() {
   return coarse
 }
 
-export default function App() {
-  const [entered, setEntered] = useState(false)
+function GardenApp() {
   const [nearLandmark, setNearLandmark] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [pointerLocked, setPointerLocked] = useState(false)
@@ -42,33 +42,54 @@ export default function App() {
     const onLockChange = () => {
       setPointerLocked(document.pointerLockElement !== null)
     }
+    const onLockError = () => {
+      // Pointer lock is optional — walking/looking still work via drag.
+      setPointerLocked(false)
+    }
     document.addEventListener('pointerlockchange', onLockChange)
-    return () => document.removeEventListener('pointerlockchange', onLockChange)
+    document.addEventListener('pointerlockerror', onLockError)
+    return () => {
+      document.removeEventListener('pointerlockchange', onLockChange)
+      document.removeEventListener('pointerlockerror', onLockError)
+    }
   }, [])
 
   useEffect(() => {
-    if (!entered || isMobile || memoryOpen) return
+    if (isMobile || memoryOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyE' && nearLandmark) {
         setMemoryOpen(true)
-        if (document.pointerLockElement) document.exitPointerLock()
+        try {
+          document.exitPointerLock?.()
+        } catch {
+          /* ignore */
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [entered, isMobile, memoryOpen, nearLandmark])
+  }, [isMobile, memoryOpen, nearLandmark])
 
   const requestLock = useCallback(() => {
     if (isMobile || memoryOpen) return
     const canvas = document.querySelector('canvas')
-    canvas?.requestPointerLock()
+    if (!canvas?.requestPointerLock) return
+    try {
+      const result = canvas.requestPointerLock() as void | Promise<void>
+      if (result && typeof result.then === 'function') {
+        result.catch(() => {
+          /* best-effort only */
+        })
+      }
+    } catch {
+      /* pointer lock optional */
+    }
   }, [isMobile, memoryOpen])
 
-  const dpr = useMemo(() => Math.min(window.devicePixelRatio, 1.75), [])
-
-  if (!entered) {
-    return <Landing onEnter={() => setEntered(true)} />
-  }
+  const dpr = useMemo(
+    () => (typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.75) : 1),
+    [],
+  )
 
   return (
     <>
@@ -76,7 +97,13 @@ export default function App() {
         shadows
         dpr={dpr}
         camera={{ fov: 60, near: 0.1, far: 80, position: [0, 1.55, 4] }}
-        onClick={requestLock}
+        onPointerDown={requestLock}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault()
+            console.warn('[garden] WebGL context lost')
+          })
+        }}
         style={{ width: '100%', height: '100%', display: 'block', background: '#cfe0ef' }}
       >
         <Suspense fallback={null}>
@@ -99,7 +126,7 @@ export default function App() {
               ? 'Walk toward the glowing bench'
               : pointerLocked
                 ? 'WASD to walk · E near the bench · Esc to unlock look'
-                : 'Click the garden to look around · WASD to walk'}
+                : 'WASD to walk · drag or click to look · E near the bench'}
           </p>
         )}
         {nearLandmark && !memoryOpen && (
@@ -108,7 +135,11 @@ export default function App() {
             className="hud__prompt"
             onClick={() => {
               setMemoryOpen(true)
-              if (document.pointerLockElement) document.exitPointerLock()
+              try {
+                document.exitPointerLock?.()
+              } catch {
+                /* ignore */
+              }
             }}
           >
             {isMobile ? 'Open memory' : 'Press E · Open memory'}
@@ -126,5 +157,19 @@ export default function App() {
         <MemoryCard memory={SAMPLE_MEMORY} onClose={() => setMemoryOpen(false)} />
       )}
     </>
+  )
+}
+
+export default function App() {
+  const [entered, setEntered] = useState(false)
+
+  return (
+    <ErrorBoundary onReset={() => setEntered(false)}>
+      {!entered ? (
+        <Landing onEnter={() => setEntered(true)} />
+      ) : (
+        <GardenApp />
+      )}
+    </ErrorBoundary>
   )
 }
